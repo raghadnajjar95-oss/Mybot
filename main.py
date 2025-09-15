@@ -1,42 +1,59 @@
-import imghdr_pure as imghdr
-from telegram.ext import Updater, CommandHandler, MessageHandler, Filters
-import logging
 import os
+import logging
+from telegram.ext import Updater, CommandHandler, MessageHandler, Filters
 import wikipedia
 
-# إعداد اللوج للتجربة
-logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-                    level=logging.INFO)
+# تفعيل اللغة العربية كبداية
+wikipedia.set_lang("ar")
 
+# إعداد اللوجز
+logging.basicConfig(
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    level=logging.INFO
+)
 logger = logging.getLogger(__name__)
 
 # دالة /start
 def start(update, context):
-    update.message.reply_text('👋 أهلاً بك! اكتب أي كلمة وسأجلب لك معلومات من ويكيبيديا.')
+    update.message.reply_text("👋 أهلاً! أرسل لي كلمة وسأبحث عنها في ويكيبيديا 🔎")
 
-# دالة /help
-def help_command(update, context):
-    update.message.reply_text('ℹ️ أرسل كلمة أو جملة وسأبحث عنها في ويكيبيديا.')
-
-# دالة البحث في ويكيبيديا
-def search_wiki(update, context):
+# دالة البحث
+def search(update, context):
     query = update.message.text
     try:
-        summary = wikipedia.summary(query, sentences=2, auto_suggest=False, redirect=True)
-        update.message.reply_text(summary)
-    except Exception as e:
-        update.message.reply_text("⚠️ لم أتمكن من إيجاد معلومات، جرّب كلمة أخرى.")
+        # البحث بالعربي أولاً
+        wikipedia.set_lang("ar")
+        result = wikipedia.summary(query, sentences=2)
+        update.message.reply_text(result)
+    except (wikipedia.exceptions.DisambiguationError, wikipedia.exceptions.PageError):
+        try:
+            # إذا ما لقى بالعربي، يحاول بالإنكليزي
+            wikipedia.set_lang("en")
+            result = wikipedia.summary(query, sentences=2)
+            update.message.reply_text(result)
+        except wikipedia.exceptions.PageError:
+            update.message.reply_text("❌ لم أجد صفحة بهذا الاسم لا بالعربي ولا بالإنكليزي.")
+        except Exception:
+            update.message.reply_text("⚠️ حدث خطأ، جرّب كلمة أخرى.")
+    except Exception:
+        update.message.reply_text("⚠️ حدث خطأ غير متوقع، جرّب كلمة أخرى.")
 
 def main():
-    # تأكدي أنك ضايفة BOT_TOKEN في Render → Environment
-    token = os.getenv("BOT_TOKEN")  
-    updater = Updater(token, use_context=True)
+    # جلب التوكن من Environment Variables
+    TOKEN = os.getenv("BOT_TOKEN")
+
+    if not TOKEN:
+        print("❌ لم أجد التوكن! تأكد أنك أضفته بالـ Environment Variables باسم BOT_TOKEN")
+        return
+
+    updater = Updater(TOKEN, use_context=True)
     dp = updater.dispatcher
 
+    # الأوامر
     dp.add_handler(CommandHandler("start", start))
-    dp.add_handler(CommandHandler("help", help_command))
-    dp.add_handler(MessageHandler(Filters.text & ~Filters.command, search_wiki))
+    dp.add_handler(MessageHandler(Filters.text & ~Filters.command, search))
 
+    # تشغيل البوت
     updater.start_polling()
     updater.idle()
 
