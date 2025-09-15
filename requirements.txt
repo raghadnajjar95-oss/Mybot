@@ -1,4 +1,4 @@
 python-telegram-bot==13.15
 wikipedia
 flask
-imghdr
+imghdr-pure
